@@ -1,4 +1,3 @@
-
 import java.io.InputStream;
 import java.io.RandomAccessFile;
 import java.net.HttpURLConnection;
@@ -6,135 +5,165 @@ import java.net.URL;
 import java.util.List;
 import java.util.Map;
 import javafx.beans.Observable;
+import javafx.beans.property.DoubleProperty;
+import javafx.beans.property.IntegerProperty;
+import javafx.beans.property.SimpleDoubleProperty;
 import javafx.beans.property.SimpleIntegerProperty;
 import javafx.beans.property.SimpleStringProperty;
+import javafx.beans.property.StringProperty;
 import javafx.concurrent.Task;
 import javafx.scene.control.ProgressIndicator;
 
 public class DownloadEntry extends Task<Void> {
-
-    public static final int NUM_ITERATIONS = 100;
     
     public SimpleStringProperty fileName;
     public SimpleStringProperty urlText;
     public SimpleIntegerProperty fileSize;
+    public SimpleDoubleProperty speed;
     
-    private URL url;
-//    private int status;
-    private int downloaded;
-    private int size;
-    private URL newurl = null;
-    
-    public static final String statuses[]={"Downloading","Error","Paused","Cancelled","Complete"};
-    
-    public static final int Downloading = 0;
-    public static final int Error = 1;
-    public static final int Paused = 2;
-    public static final int Cancelled = 3;
-    public static final int Complete = 4;
-    
+    public URL url;
+    public int downloaded;
+    public int size = -1;
+    public URL newurl = null;
     final int MAX_BUFFER_SIZE=50*1024;
+    private int status;
+    public static final String statuses[]={"Downloading","Error","Paused","Cancelled","Complete"};
+    public static final int Downloading=0;
+    public static final int Error=1;
+    public static final int Paused=2;
+    public static final int Cancelled=3;
+    public static final int Complete=4;
     
-    public DownloadEntry(URL ur) {
+    //Constructor
+    public DownloadEntry(URL ur) throws Exception{
         url = ur;
         fileName = new SimpleStringProperty(url.toString().substring(url.toString().lastIndexOf("/")+1));
         urlText = new SimpleStringProperty(url.toString());
-        size = -1;
-        downloaded = 0;
-        System.out.println("Constr called..............");
-        System.out.println(getFileName());
-        System.out.println(getUrlText());
-        System.out.println(getFileSize());
-        this.updateMessage(statuses[Downloading]);
+        speed = new SimpleDoubleProperty(0.0);
+        HttpURLConnection connect=(HttpURLConnection)url.openConnection();
+        connect.setRequestProperty("Range","bytes"+downloaded+"-");
+        connect.setRequestProperty("User-Agent","Mozilla/5.0 (Windows NT 6.3; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0");
+        connect.connect();
+        if (connect.getResponseCode()/100!=2) {
+            this.updateMessage("Error");
+            return;
+        }
+        if (size==-1) {
+            HttpURLConnection sizecon = (HttpURLConnection)url.openConnection();
+            sizecon.setRequestMethod("HEAD");
+            sizecon.setRequestProperty("User-Agent","Mozilla/5.0 (Windows NT 6.3; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0");
+            sizecon.getInputStream();
+            size=sizecon.getContentLength();
+        }
+
+        HttpURLConnection con = (HttpURLConnection)url.openConnection();
+        con.setRequestProperty("Range","bytes"+downloaded+"-");
+
+        if (size==-1) {
+            newurl = connect.getURL();
+            String searchurl = String.valueOf(url);
+            con.setRequestProperty("Referer",String.valueOf(newurl)); 
+        }
+        con.setRequestProperty("User-Agent","Mozilla/5.0 (Windows NT 6.3; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0");
+        con.connect();
+        if (size==-1) {
+            HttpURLConnection sizecon=(HttpURLConnection)url.openConnection();
+            sizecon.setRequestMethod("HEAD");
+            sizecon.setRequestProperty("Referer",String.valueOf(newurl)); 
+            sizecon.getInputStream();
+            size = sizecon.getContentLength();
+        }
+        fileSize = new SimpleIntegerProperty(size);
+        this.updateMessage("Downloading");
     }
-    
+
     @Override
     protected Void call() {
         RandomAccessFile file=null;
         InputStream stream=null;
-        try
-        {
+        try {
             HttpURLConnection connect=(HttpURLConnection)url.openConnection();
             connect.setRequestProperty("Range","bytes"+downloaded+"-");
+            connect.setRequestProperty("User-Agent","Mozilla/5.0 (Windows NT 6.3; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0");
             connect.connect();
-            if (connect.getResponseCode()/100!=2)
-            {
-                error();
+            if (connect.getResponseCode()/100!=2) {
+                this.updateMessage("Error");
+                return null;
             }
-            if (size==-1)
-            {
-                HttpURLConnection sizecon = (HttpURLConnection)url.openConnection();
+            if (size==-1) {
+                HttpURLConnection sizecon=(HttpURLConnection)url.openConnection();
                 sizecon.setRequestMethod("HEAD");
+                sizecon.setRequestProperty("User-Agent","Mozilla/5.0 (Windows NT 6.3; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0");
                 sizecon.getInputStream();
-                size = sizecon.getContentLength();
-                stateChanged();
+                size=sizecon.getContentLength();
             }
-            
-            HttpURLConnection con = (HttpURLConnection)url.openConnection();
+            HttpURLConnection con=(HttpURLConnection)url.openConnection();
             con.setRequestProperty("Range","bytes"+downloaded+"-");
-            
-            if (size==-1)
-            {
-                newurl = connect.getURL();
-                String searchurl = String.valueOf(url);
-                
+            con.setRequestProperty("User-Agent","Mozilla/5.0 (Windows NT 6.3; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0");
+            if (size==-1) {
+                newurl=connect.getURL();
+                String searchurl=String.valueOf(url);
                 con.setRequestProperty("Referer",String.valueOf(newurl)); 
-                
             }
             con.connect();
-            if (size==-1)
-            {
-                HttpURLConnection sizecon = (HttpURLConnection)url.openConnection();
+            if (size==-1) {
+                HttpURLConnection sizecon=(HttpURLConnection)url.openConnection();
                 sizecon.setRequestMethod("HEAD");
                 sizecon.setRequestProperty("Referer",String.valueOf(newurl)); 
                 sizecon.getInputStream();
                 size = sizecon.getContentLength();
-                stateChanged();
+                sizecon.disconnect();
             }
             
-            fileSize = new SimpleIntegerProperty(size);
+            updateProgress(ProgressIndicator.INDETERMINATE_PROGRESS, 1);
             
-//            Controller.addEntryInTable();
-            
-            file = new RandomAccessFile(getFileName(), "rw");
+            String filename = url.getFile();
+            filename = filename.substring(filename.lastIndexOf("/")+1);
+            file = new RandomAccessFile(filename, "rw");
             file.seek(downloaded);
             stream = con.getInputStream();
             
-            while (this.getMessage() == statuses[Downloading])
-            {
+            long currTime = System.currentTimeMillis();
+            
+            while (status==Downloading) {
                 byte buffer[];
-                if (size-downloaded>MAX_BUFFER_SIZE)
-                {
+                if (size-downloaded>MAX_BUFFER_SIZE) {
                     buffer=new byte[MAX_BUFFER_SIZE];
                 }
-                else
+                else {
                     buffer=new byte[size-downloaded];
+                }
                 
                 int c=stream.read(buffer);
-                if (c==-1)
+                if (c==-1){
                     break;
+                }
                 file.write(buffer,0,c);
-                downloaded+=c;
-                stateChanged();
+                downloaded += c;
+                updateProgress((1.0 *downloaded)/size, 1);
+                updateMessage("Downloading");
+                status = Downloading;
+                long elapsedTime = System.currentTimeMillis() - currTime;
+                speed.set((1.0 * downloaded) / elapsedTime);  //inkBsps
+                if(this.isCancelled()) {
+                    speed.set(0.0);
+                    return null;
+                }
             }
-            if (getMessage()==statuses[Downloading])
-            {
-                this.updateMessage(statuses[Complete]);
-                stateChanged();
+            if (status==Downloading) {
+                status=Complete;
+                updateMessage("Complete");
             } 
         }
-        catch(Exception e)
-        {
-            System.out.println("call: " + e);
+        catch(Exception E) {
+            this.updateMessage("Error");
+            E.printStackTrace();
         }
-        finally
-        {
-            if (file!=null)
-            {
+        finally {
+            if (file!=null) {
                 try{file.close();}catch(Exception E){}
             }
-            if (stream!=null)
-            {
+            if (stream!=null) {
                 try{stream.close();}catch(Exception E){}
             }
         }
@@ -142,94 +171,70 @@ public class DownloadEntry extends Task<Void> {
     }
     
     
-    
-    private void stateChanged()
-    {
-        System.out.println("state Changed called");
-        Controller.handleChange();
-    }
-    
-    void printheader(HttpURLConnection conn)
-    {
-        Map<String, List<String>> map = conn.getHeaderFields();
-	for (Map.Entry<String, List<String>> entry : map.entrySet()) {
-		System.out.println("Key : " + entry.getKey() + 
-                 " ,Value : " + entry.getValue());
-        }
-    }
-//    
-//    
-//    public URL getURL()
-//    {
-//        return url;
-//    }
-//    
-//    public int getSize()
-//    {
-//        return size;
-//    }
-//    
-//    public String getStatus()
-//    {
-//        return this.getMessage();
-//    }
-//    
-//    @Override
-//    public final double getProgress()
-//    {
-//        return ((float)downloaded*100)/size;
-//    }
-    
     void pause()
     {
-        this.updateMessage(statuses[Paused]);
-        stateChanged();
+        this.updateMessage("Paused");
+        cancel();
     }
 //    
 //    void resume()
 //    {
-//        this.updateMessage(statuses[Downloading]);
+//        this.updateMessage("Downloading]);
 //        stateChanged();
 //        download();
 //    }
 //    
     public void cancelIt()
     {
-        this.updateMessage(statuses[Cancelled]);
-        stateChanged();
+        this.updateMessage("Cancelled");
+//        stateChanged();
     }
-    
-    void error()
-    {
-        this.updateMessage(statuses[Error]);
-        stateChanged();
-    }
-    
     
     public String getFileName() {
-        if(fileName==null) return null;
         return fileName.get();
     }
 
     public void setFileName(String fileName) {
-        this.fileName = new SimpleStringProperty(fileName);
+        this.fileName.set(fileName);
     }
 
+    public StringProperty fileNameProperty() {
+        return fileName;
+    }
+    
     public String getUrlText() {
-        if(urlText==null) return null;
         return urlText.get();
     }
 
     public void setUrlText(String urlText) {
-        this.urlText = new SimpleStringProperty(urlText);
+        this.urlText.set(urlText);
     }
 
+    public StringProperty urlTextProperty() {
+        return urlText;
+    }
+    
     public Integer getFileSize() {
-        if(fileSize==null) return null;
         return fileSize.get();
     }
 
     public void setFileSize(Integer fileSize) {
-        this.fileSize = new SimpleIntegerProperty(fileSize);
+        this.fileSize.set(fileSize);
     } 
+
+    public IntegerProperty fileSizeProperty() {
+        return fileSize;
+    }
+    
+    public Double getSpeed() {
+        return speed.get();
+    }
+
+    public void setSpeed(Double speed) {
+        this.speed.set(speed);
+    }
+    
+    public DoubleProperty speedProperty() {
+        return speed;
+    }
 }

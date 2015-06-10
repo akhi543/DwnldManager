@@ -31,7 +31,7 @@
       <HBox fx:id="box1" alignment="CENTER" layoutX="74.0" layoutY="107.0" prefHeight="100.0" prefWidth="200.0" AnchorPane.bottomAnchor="70.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="60.0" />
       <HBox alignment="CENTER" layoutX="139.0" layoutY="346.0" prefWidth="300.0" spacing="10.0" AnchorPane.bottomAnchor="15.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0">
          <children>
-            <Button mnemonicParsing="false" text="Pause" textAlignment="CENTER">
+            <Button fx:id="pauseResumeButton" mnemonicParsing="false" onAction="#pauseResumeButtonClicked" text="Pause" textAlignment="CENTER">
                <font>
                   <Font name="Arial" size="15.0" />
                </font>
@@ -39,7 +39,7 @@
                   <Insets />
                </opaqueInsets>
             </Button>
-            <Button layoutX="10.0" layoutY="10.0" mnemonicParsing="false" text="Cancel" textAlignment="CENTER">
+            <Button fx:id="cancelButton" onAction="#cancelButtonClicked" layoutX="10.0" layoutY="10.0" mnemonicParsing="false" text="Cancel" textAlignment="CENTER">
                <font>
                   <Font name="Arial" size="15.0" />
                </font>
@@ -47,7 +47,7 @@
                   <Insets />
                </opaqueInsets>
             </Button>
-            <Button layoutX="66.0" layoutY="10.0" mnemonicParsing="false" text="Delete" textAlignment="CENTER">
+            <Button fx:id="deleteButton" onAction="#deleteButtonClicked" layoutX="66.0" layoutY="10.0" mnemonicParsing="false" text="Delete" textAlignment="CENTER">
                <font>
                   <Font name="Arial" size="15.0" />
                </font>
