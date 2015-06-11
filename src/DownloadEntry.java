@@ -145,6 +145,7 @@ public class DownloadEntry extends Task<Void> {
                     }
                     else {
                         status = Cancelled;
+                        downloaded = 0;
                         updateMessage("Cancelled");
                     }
                     return null;
@@ -193,6 +194,7 @@ public class DownloadEntry extends Task<Void> {
             pauseCancel = CANCEL;
             cancel();
             downloaded = 0;
+            updateMessage("Cancelled"); //required if state was puased
         }
     }
     
