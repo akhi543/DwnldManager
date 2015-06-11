@@ -18,7 +18,7 @@ public class Main extends Application {
     public void start(Stage primaryStage) throws Exception{
         try {
             AnchorPane root = (AnchorPane) FXMLLoader.load(Main.class.getResource("FXMLDocument.fxml"));
-            primaryStage.setTitle("Hello World");
+            primaryStage.setTitle("Download Manager");
             primaryStage.setScene(new Scene(root, 470, 460));
             primaryStage.setMinWidth(470);
             primaryStage.setMinHeight(460);

@@ -1,28 +1,11 @@
-import java.io.InputStream;
-import java.io.RandomAccessFile;
 import java.net.URL;
-import java.net.URLConnection;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Observable;
-import java.util.Observer;
 import java.util.ResourceBundle;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadFactory;
-import javafx.beans.property.SimpleIntegerProperty;
-import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
-import javafx.concurrent.Task;
-import javafx.event.ActionEvent;
-import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
-import javafx.geometry.Insets;
 import javafx.scene.control.Button;
-import javafx.scene.control.Label;
-import javafx.scene.control.ProgressBar;
-import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
@@ -48,9 +31,7 @@ public class Controller implements Initializable {
     public TableColumn<DownloadEntry, Double> progressColumn;
     public TableColumn<DownloadEntry, String> statusColumn;
     ExecutorService executor;
-    List<DownloadEntry> downloadsList;
-    List<Boolean> paused;
-
+    ObservableList<DownloadEntry> downloadsList;
     
     @Override
     public void initialize(URL location, ResourceBundle resources) {
@@ -65,20 +46,21 @@ public class Controller implements Initializable {
         speedColumn = new TableColumn<>("Speed(KBps)");
         
         fileNameColumn.setCellValueFactory(new PropertyValueFactory<>("fileName"));
-        urlColumn.setCellValueFactory(new PropertyValueFactory<DownloadEntry, String>("urlText"));
-        fileSizeColumn.setCellValueFactory(new PropertyValueFactory<DownloadEntry, Integer>("fileSize"));
-        speedColumn.setCellValueFactory(new PropertyValueFactory<DownloadEntry, Double>("speed"));
-        progressColumn.setCellValueFactory(new PropertyValueFactory<DownloadEntry, Double>("progress"));
+        urlColumn.setCellValueFactory(new PropertyValueFactory<>("urlText"));
+        fileSizeColumn.setCellValueFactory(new PropertyValueFactory<>("fileSize"));
+        speedColumn.setCellValueFactory(new PropertyValueFactory<>("speed"));
+        progressColumn.setCellValueFactory(new PropertyValueFactory<>("progress"));
         progressColumn.setCellFactory(ProgressBarTableCell.<DownloadEntry>forTableColumn());
-        statusColumn.setCellValueFactory(new PropertyValueFactory<DownloadEntry, String>("message"));
+        
+        statusColumn.setCellValueFactory(new PropertyValueFactory<>("message"));
        
         downloadsTable.getColumns().addAll(fileNameColumn, speedColumn, fileSizeColumn, progressColumn, statusColumn, urlColumn);
         box1.getChildren().add(downloadsTable);
-        box1.setHgrow(downloadsTable, Priority.ALWAYS);
+        HBox.setHgrow(downloadsTable, Priority.ALWAYS);
         
         downloadsTable.setOnMouseClicked(e -> {
             int idx = downloadsTable.getSelectionModel().getSelectedIndex();
-            if(paused.get(idx)) {
+            if(downloadsList.get(idx).isPaused) {
                 pauseResumeButton.setText("Resume");
             }
             else {
@@ -86,21 +68,17 @@ public class Controller implements Initializable {
             }
         });
         
-        executor = Executors.newFixedThreadPool(4);
-        paused = new ArrayList<>();       
-        downloadsList = new ArrayList<DownloadEntry>();       
-     
+        executor = Executors.newFixedThreadPool(4);       
+        downloadsList = FXCollections.observableArrayList();
+        downloadsTable.setItems(downloadsList);
     }
     
     public void addDownloadButtonClicked() {
         try{
-            DownloadEntry task = new DownloadEntry(new URL("http://img.planespotters.net/photo/272000/original/A6-EYJ-Etihad-Airways-Airbus-A330-200_PlanespottersNet_272357.jpg"));
+            String urlText = urlTextBox.getText();
+            DownloadEntry task = new DownloadEntry(new URL(urlText));
             downloadsList.add(task);
-            downloadsTable.getItems().add(task);
-            paused.add(false);
-            System.out.println(executor);
             executor.execute(task);
-            System.out.println(executor);
         }
         catch(Exception e) {
             System.out.println("addDownloadButtonClicked: " + e);
@@ -110,25 +88,26 @@ public class Controller implements Initializable {
     
     public void pauseResumeButtonClicked() {
         int idx = downloadsTable.getSelectionModel().getSelectedIndex();
+        if(idx==-1) {
+            new AlertBox("Error", "Please select an entry in table");
+            return;
+        }
         try {
-            if(paused.get(idx)==false) {
-                downloadsList.get(idx).pause();  //sends interrupt, not necessary that interrupt is handled
-                System.out.println(downloadsList.get(idx).downloaded);
+            if(downloadsList.get(idx).isPaused==false) {
+                downloadsList.get(idx).pause();  
                 pauseResumeButton.setText("Resume");
-                paused.set(idx, Boolean.TRUE);
+                downloadsList.get(idx).isPaused = true;
             }
             else {
                 URL t = downloadsList.get(idx).url;
                 int d = downloadsList.get(idx).downloaded;
-                System.out.println(t);
-                System.out.println(d);
+                downloadsList.remove(idx);
                 DownloadEntry task = new DownloadEntry(t);
-                System.out.println(executor);
                 task.downloaded = d;
-                executor.execute(downloadsList.get(idx));
-                System.out.println(executor);
+                downloadsList.add(idx, task);
+                executor.execute(task);
                 pauseResumeButton.setText("Pause");
-                paused.set(idx, Boolean.FALSE);
+                downloadsList.get(idx).isPaused = false;
             }
         }
         catch(Exception e) {
@@ -136,15 +115,24 @@ public class Controller implements Initializable {
         }
     }
     
+    //stops download, makes download irresumable(puts downloaded = 0)
     public void cancelButtonClicked() {
         int idx = downloadsTable.getSelectionModel().getSelectedIndex();
-        downloadsList.get(idx).cancel();
+        if(idx==-1) {
+            new AlertBox("Error", "Please select an entry in table");
+            return;
+        }
+        downloadsList.get(idx).cancelIt();
     }
     
+    //cancels and deletes entry from table
     public void deleteButtonClicked() {
         int idx = downloadsTable.getSelectionModel().getSelectedIndex();
+        if(idx==-1) {
+            new AlertBox("Error", "Please select an entry in table");
+            return;
+        }
+        downloadsList.get(idx).cancelIt();
+        downloadsList.remove(idx);
     }
-    
-    
-    
 }

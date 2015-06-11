@@ -2,9 +2,7 @@ import java.io.InputStream;
 import java.io.RandomAccessFile;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.util.List;
-import java.util.Map;
-import javafx.beans.Observable;
+import javafx.application.Platform;
 import javafx.beans.property.DoubleProperty;
 import javafx.beans.property.IntegerProperty;
 import javafx.beans.property.SimpleDoubleProperty;
@@ -24,7 +22,7 @@ public class DownloadEntry extends Task<Void> {
     public URL url;
     public int downloaded;
     public int size = -1;
-    public URL newurl = null;
+    public URL refererUrl = null;
     final int MAX_BUFFER_SIZE=50*1024;
     private int status;
     public static final String statuses[]={"Downloading","Error","Paused","Cancelled","Complete"};
@@ -33,86 +31,78 @@ public class DownloadEntry extends Task<Void> {
     public static final int Paused=2;
     public static final int Cancelled=3;
     public static final int Complete=4;
-    
+    public boolean isPaused = false;
+    public boolean pauseCancel;
+    public final boolean PAUSE = false;
+    public final boolean CANCEL = true;
+    RandomAccessFile file=null;
+    InputStream stream=null;
+        
     //Constructor
     public DownloadEntry(URL ur) throws Exception{
         url = ur;
         fileName = new SimpleStringProperty(url.toString().substring(url.toString().lastIndexOf("/")+1));
         urlText = new SimpleStringProperty(url.toString());
         speed = new SimpleDoubleProperty(0.0);
-        HttpURLConnection connect=(HttpURLConnection)url.openConnection();
-        connect.setRequestProperty("Range","bytes"+downloaded+"-");
-        connect.setRequestProperty("User-Agent","Mozilla/5.0 (Windows NT 6.3; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0");
-        connect.connect();
-        if (connect.getResponseCode()/100!=2) {
-            this.updateMessage("Error");
-            return;
-        }
-        if (size==-1) {
-            HttpURLConnection sizecon = (HttpURLConnection)url.openConnection();
-            sizecon.setRequestMethod("HEAD");
-            sizecon.setRequestProperty("User-Agent","Mozilla/5.0 (Windows NT 6.3; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0");
-            sizecon.getInputStream();
-            size=sizecon.getContentLength();
-        }
-
-        HttpURLConnection con = (HttpURLConnection)url.openConnection();
-        con.setRequestProperty("Range","bytes"+downloaded+"-");
-
-        if (size==-1) {
-            newurl = connect.getURL();
-            String searchurl = String.valueOf(url);
-            con.setRequestProperty("Referer",String.valueOf(newurl)); 
-        }
-        con.setRequestProperty("User-Agent","Mozilla/5.0 (Windows NT 6.3; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0");
-        con.connect();
-        if (size==-1) {
-            HttpURLConnection sizecon=(HttpURLConnection)url.openConnection();
-            sizecon.setRequestMethod("HEAD");
-            sizecon.setRequestProperty("Referer",String.valueOf(newurl)); 
-            sizecon.getInputStream();
-            size = sizecon.getContentLength();
-        }
-        fileSize = new SimpleIntegerProperty(size);
-        this.updateMessage("Downloading");
-    }
-
-    @Override
-    protected Void call() {
-        RandomAccessFile file=null;
-        InputStream stream=null;
+        HttpURLConnection connect=null, sizecon=null, con=null;
         try {
-            HttpURLConnection connect=(HttpURLConnection)url.openConnection();
+            connect=(HttpURLConnection)url.openConnection();
             connect.setRequestProperty("Range","bytes"+downloaded+"-");
             connect.setRequestProperty("User-Agent","Mozilla/5.0 (Windows NT 6.3; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0");
             connect.connect();
             if (connect.getResponseCode()/100!=2) {
                 this.updateMessage("Error");
-                return null;
+                return;
             }
             if (size==-1) {
-                HttpURLConnection sizecon=(HttpURLConnection)url.openConnection();
+                sizecon = (HttpURLConnection)url.openConnection();
                 sizecon.setRequestMethod("HEAD");
                 sizecon.setRequestProperty("User-Agent","Mozilla/5.0 (Windows NT 6.3; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0");
                 sizecon.getInputStream();
                 size=sizecon.getContentLength();
             }
-            HttpURLConnection con=(HttpURLConnection)url.openConnection();
+
+            con = (HttpURLConnection)url.openConnection();
             con.setRequestProperty("Range","bytes"+downloaded+"-");
-            con.setRequestProperty("User-Agent","Mozilla/5.0 (Windows NT 6.3; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0");
+
             if (size==-1) {
-                newurl=connect.getURL();
-                String searchurl=String.valueOf(url);
-                con.setRequestProperty("Referer",String.valueOf(newurl)); 
+                refererUrl = connect.getURL();
+                con.setRequestProperty("Referer",String.valueOf(refererUrl)); 
             }
+            con.setRequestProperty("User-Agent","Mozilla/5.0 (Windows NT 6.3; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0");
             con.connect();
             if (size==-1) {
-                HttpURLConnection sizecon=(HttpURLConnection)url.openConnection();
+                sizecon=(HttpURLConnection)url.openConnection();
                 sizecon.setRequestMethod("HEAD");
-                sizecon.setRequestProperty("Referer",String.valueOf(newurl)); 
+                sizecon.setRequestProperty("Referer",String.valueOf(refererUrl)); 
                 sizecon.getInputStream();
                 size = sizecon.getContentLength();
-                sizecon.disconnect();
+            }
+            fileSize = new SimpleIntegerProperty(size);
+        }
+        catch(Exception e) {
+            System.out.println("constructor: " + e);
+        }
+        finally {
+            if(connect!=null) { connect.disconnect(); }
+            if(con!=null) { con.disconnect(); }
+            if(sizecon!=null) { sizecon.disconnect(); }
+        }
+        status = Downloading;
+        this.updateMessage("Downloading");
+    }
+
+    @Override
+    protected Void call() {
+        try {
+            HttpURLConnection con = (HttpURLConnection)url.openConnection();
+            con.setRequestProperty("Range","bytes"+downloaded+"-");
+            con.setRequestProperty("User-Agent","Mozilla/5.0 (Windows NT 6.3; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0");
+            con.setRequestProperty("Referer", refererUrl.toString());
+            con.connect();
+            if (con.getResponseCode()/100!=2) {
+                this.updateMessage("Error");
+                return null;
             }
             
             updateProgress(ProgressIndicator.INDETERMINATE_PROGRESS, 1);
@@ -125,6 +115,8 @@ public class DownloadEntry extends Task<Void> {
             
             long currTime = System.currentTimeMillis();
             
+            int pastDownloaded = downloaded;
+            
             while (status==Downloading) {
                 byte buffer[];
                 if (size-downloaded>MAX_BUFFER_SIZE) {
@@ -134,8 +126,8 @@ public class DownloadEntry extends Task<Void> {
                     buffer=new byte[size-downloaded];
                 }
                 
-                int c=stream.read(buffer);
-                if (c==-1){
+                int c = stream.read(buffer);
+                if (downloaded==size){  //previous c==-1
                     break;
                 }
                 file.write(buffer,0,c);
@@ -144,20 +136,35 @@ public class DownloadEntry extends Task<Void> {
                 updateMessage("Downloading");
                 status = Downloading;
                 long elapsedTime = System.currentTimeMillis() - currTime;
-                speed.set((1.0 * downloaded) / elapsedTime);  //inkBsps
+                speed.set((1.0 * (downloaded - pastDownloaded)) / elapsedTime);  //inkBsps
                 if(this.isCancelled()) {
                     speed.set(0.0);
+                    if(pauseCancel==PAUSE) {
+                        status = Paused;
+                        updateMessage("Paused");
+                    }
+                    else {
+                        status = Cancelled;
+                        updateMessage("Cancelled");
+                    }
                     return null;
                 }
             }
             if (status==Downloading) {
-                status=Complete;
+                status = Complete;
                 updateMessage("Complete");
+                String temp = String.format(fileName.get() + " downloaded successfuly.");
+                //All interactions with JavaFX objects (including creation) must be done on JFX thread,
+                //if you want to access those JFX objects from another thread - use runLater or runAndWait methods. 
+                Platform.runLater(() -> {
+                    new AlertBox("Success", temp);
+                });
             } 
         }
-        catch(Exception E) {
+        catch(Exception e) {
+            status = Error;
             this.updateMessage("Error");
-            E.printStackTrace();
+            System.out.println("call: " + e);
         }
         finally {
             if (file!=null) {
@@ -171,23 +178,22 @@ public class DownloadEntry extends Task<Void> {
     }
     
     
-    void pause()
-    {
-        this.updateMessage("Paused");
-        cancel();
+    void pause() {
+        if(status==Downloading) {
+            pauseCancel = PAUSE;
+            //sends interrupt, carries out following lines immediately, interrupt is handled in near future using isCancelled()
+            cancel(); 
+            System.out.println(statuses[status]);
+        }
     }
-//    
-//    void resume()
-//    {
-//        this.updateMessage("Downloading]);
-//        stateChanged();
-//        download();
-//    }
-//    
-    public void cancelIt()
-    {
-        this.updateMessage("Cancelled");
-//        stateChanged();
+    
+    public void cancelIt() {
+        System.out.println(statuses[status]);
+        if(status==Downloading || status==Paused) {
+            pauseCancel = CANCEL;
+            cancel();
+            downloaded = 0;
+        }
     }
     
     public String getFileName() {
