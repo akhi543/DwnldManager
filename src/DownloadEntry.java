@@ -2,9 +2,7 @@ import java.io.InputStream;
 import java.io.RandomAccessFile;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.util.List;
-import java.util.Map;
-import javafx.beans.Observable;
+import javafx.application.Platform;
 import javafx.beans.property.DoubleProperty;
 import javafx.beans.property.IntegerProperty;
 import javafx.beans.property.SimpleDoubleProperty;
@@ -33,6 +31,10 @@ public class DownloadEntry extends Task<Void> {
     public static final int Paused=2;
     public static final int Cancelled=3;
     public static final int Complete=4;
+    public boolean isPaused = false;
+    public boolean pauseCancel;
+    public final boolean PAUSE = false;
+    public final boolean CANCEL = true;
     
     //Constructor
     public DownloadEntry(URL ur) throws Exception{
@@ -40,40 +42,51 @@ public class DownloadEntry extends Task<Void> {
         fileName = new SimpleStringProperty(url.toString().substring(url.toString().lastIndexOf("/")+1));
         urlText = new SimpleStringProperty(url.toString());
         speed = new SimpleDoubleProperty(0.0);
-        HttpURLConnection connect=(HttpURLConnection)url.openConnection();
-        connect.setRequestProperty("Range","bytes"+downloaded+"-");
-        connect.setRequestProperty("User-Agent","Mozilla/5.0 (Windows NT 6.3; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0");
-        connect.connect();
-        if (connect.getResponseCode()/100!=2) {
-            this.updateMessage("Error");
-            return;
-        }
-        if (size==-1) {
-            HttpURLConnection sizecon = (HttpURLConnection)url.openConnection();
-            sizecon.setRequestMethod("HEAD");
-            sizecon.setRequestProperty("User-Agent","Mozilla/5.0 (Windows NT 6.3; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0");
-            sizecon.getInputStream();
-            size=sizecon.getContentLength();
-        }
+        HttpURLConnection connect=null, sizecon=null, con=null;
+        try {
+            connect=(HttpURLConnection)url.openConnection();
+            connect.setRequestProperty("Range","bytes"+downloaded+"-");
+            connect.setRequestProperty("User-Agent","Mozilla/5.0 (Windows NT 6.3; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0");
+            connect.connect();
+            if (connect.getResponseCode()/100!=2) {
+                this.updateMessage("Error");
+                return;
+            }
+            if (size==-1) {
+                sizecon = (HttpURLConnection)url.openConnection();
+                sizecon.setRequestMethod("HEAD");
+                sizecon.setRequestProperty("User-Agent","Mozilla/5.0 (Windows NT 6.3; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0");
+                sizecon.getInputStream();
+                size=sizecon.getContentLength();
+            }
 
-        HttpURLConnection con = (HttpURLConnection)url.openConnection();
-        con.setRequestProperty("Range","bytes"+downloaded+"-");
+            con = (HttpURLConnection)url.openConnection();
+            con.setRequestProperty("Range","bytes"+downloaded+"-");
 
-        if (size==-1) {
-            newurl = connect.getURL();
-            String searchurl = String.valueOf(url);
-            con.setRequestProperty("Referer",String.valueOf(newurl)); 
+            if (size==-1) {
+                newurl = connect.getURL();
+                String searchurl = String.valueOf(url);
+                con.setRequestProperty("Referer",String.valueOf(newurl)); 
+            }
+            con.setRequestProperty("User-Agent","Mozilla/5.0 (Windows NT 6.3; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0");
+            con.connect();
+            if (size==-1) {
+                sizecon=(HttpURLConnection)url.openConnection();
+                sizecon.setRequestMethod("HEAD");
+                sizecon.setRequestProperty("Referer",String.valueOf(newurl)); 
+                sizecon.getInputStream();
+                size = sizecon.getContentLength();
+            }
+            fileSize = new SimpleIntegerProperty(size);
         }
-        con.setRequestProperty("User-Agent","Mozilla/5.0 (Windows NT 6.3; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0");
-        con.connect();
-        if (size==-1) {
-            HttpURLConnection sizecon=(HttpURLConnection)url.openConnection();
-            sizecon.setRequestMethod("HEAD");
-            sizecon.setRequestProperty("Referer",String.valueOf(newurl)); 
-            sizecon.getInputStream();
-            size = sizecon.getContentLength();
+        catch(Exception e) {
+            System.out.println("constructor: " + e);
         }
-        fileSize = new SimpleIntegerProperty(size);
+        finally {
+            if(connect!=null) { connect.disconnect(); }
+            if(con!=null) { con.disconnect(); }
+            if(sizecon!=null) { sizecon.disconnect(); }
+        }
         this.updateMessage("Downloading");
     }
 
@@ -82,38 +95,14 @@ public class DownloadEntry extends Task<Void> {
         RandomAccessFile file=null;
         InputStream stream=null;
         try {
-            HttpURLConnection connect=(HttpURLConnection)url.openConnection();
-            connect.setRequestProperty("Range","bytes"+downloaded+"-");
-            connect.setRequestProperty("User-Agent","Mozilla/5.0 (Windows NT 6.3; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0");
-            connect.connect();
-            if (connect.getResponseCode()/100!=2) {
+            HttpURLConnection con = (HttpURLConnection)url.openConnection();
+            if (con.getResponseCode()/100!=2) {
                 this.updateMessage("Error");
                 return null;
             }
-            if (size==-1) {
-                HttpURLConnection sizecon=(HttpURLConnection)url.openConnection();
-                sizecon.setRequestMethod("HEAD");
-                sizecon.setRequestProperty("User-Agent","Mozilla/5.0 (Windows NT 6.3; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0");
-                sizecon.getInputStream();
-                size=sizecon.getContentLength();
-            }
-            HttpURLConnection con=(HttpURLConnection)url.openConnection();
             con.setRequestProperty("Range","bytes"+downloaded+"-");
             con.setRequestProperty("User-Agent","Mozilla/5.0 (Windows NT 6.3; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0");
-            if (size==-1) {
-                newurl=connect.getURL();
-                String searchurl=String.valueOf(url);
-                con.setRequestProperty("Referer",String.valueOf(newurl)); 
-            }
             con.connect();
-            if (size==-1) {
-                HttpURLConnection sizecon=(HttpURLConnection)url.openConnection();
-                sizecon.setRequestMethod("HEAD");
-                sizecon.setRequestProperty("Referer",String.valueOf(newurl)); 
-                sizecon.getInputStream();
-                size = sizecon.getContentLength();
-                sizecon.disconnect();
-            }
             
             updateProgress(ProgressIndicator.INDETERMINATE_PROGRESS, 1);
             
@@ -134,7 +123,7 @@ public class DownloadEntry extends Task<Void> {
                     buffer=new byte[size-downloaded];
                 }
                 
-                int c=stream.read(buffer);
+                int c = stream.read(buffer);
                 if (c==-1){
                     break;
                 }
@@ -147,17 +136,29 @@ public class DownloadEntry extends Task<Void> {
                 speed.set((1.0 * downloaded) / elapsedTime);  //inkBsps
                 if(this.isCancelled()) {
                     speed.set(0.0);
+                    if(pauseCancel==PAUSE) {
+                        updateMessage("Paused");
+                    }
+                    else {
+                        updateMessage("Cancelled");
+                    }
                     return null;
                 }
             }
             if (status==Downloading) {
-                status=Complete;
+                status = Complete;
                 updateMessage("Complete");
+                String temp = String.format(fileName.get() + " downloaded successfuly.");
+                //All interactions with JavaFX objects (including creation) must be done on JFX thread,
+                //if you want to access those JFX objects from another thread - use runLater or runAndWait methods. 
+                Platform.runLater(() -> {
+                    new AlertBox("Success", temp);
+                });
             } 
         }
-        catch(Exception E) {
+        catch(Exception e) {
             this.updateMessage("Error");
-            E.printStackTrace();
+            System.out.println("call: " + e);
         }
         finally {
             if (file!=null) {
@@ -171,23 +172,14 @@ public class DownloadEntry extends Task<Void> {
     }
     
     
-    void pause()
-    {
-        this.updateMessage("Paused");
-        cancel();
+    void pause() {
+        pauseCancel = PAUSE;
+        cancel(); //sends interrupt, not necessary that interrupt is handled
     }
-//    
-//    void resume()
-//    {
-//        this.updateMessage("Downloading]);
-//        stateChanged();
-//        download();
-//    }
-//    
-    public void cancelIt()
-    {
-        this.updateMessage("Cancelled");
-//        stateChanged();
+    
+    public void cancelIt() {
+        pauseCancel = CANCEL;
+        cancel();
     }
     
     public String getFileName() {
