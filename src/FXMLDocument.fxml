@@ -39,7 +39,7 @@
                   <Insets />
                </opaqueInsets>
             </Button>
-            <Button fx:id="cancelButton" onAction="#cancelButtonClicked" layoutX="10.0" layoutY="10.0" mnemonicParsing="false" text="Cancel" textAlignment="CENTER">
+            <Button fx:id="cancelButton" layoutX="10.0" layoutY="10.0" mnemonicParsing="false" onAction="#cancelButtonClicked" text="Cancel" textAlignment="CENTER">
                <font>
                   <Font name="Arial" size="15.0" />
                </font>
@@ -47,7 +47,7 @@
                   <Insets />
                </opaqueInsets>
             </Button>
-            <Button fx:id="deleteButton" onAction="#deleteButtonClicked" layoutX="66.0" layoutY="10.0" mnemonicParsing="false" text="Delete" textAlignment="CENTER">
+            <Button fx:id="deleteButton" layoutX="66.0" layoutY="10.0" mnemonicParsing="false" onAction="#deleteButtonClicked" text="Delete" textAlignment="CENTER">
                <font>
                   <Font name="Arial" size="15.0" />
                </font>

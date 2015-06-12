@@ -17,11 +17,13 @@ public class Main extends Application {
     @Override
     public void start(Stage primaryStage) throws Exception{
         try {
+            System.out.println("1");
             AnchorPane root = (AnchorPane) FXMLLoader.load(Main.class.getResource("FXMLDocument.fxml"));
-            primaryStage.setTitle("Download Manager");
-            primaryStage.setScene(new Scene(root, 470, 460));
-            primaryStage.setMinWidth(470);
-            primaryStage.setMinHeight(460);
+            System.out.println("2");
+            primaryStage.setTitle("Hello World");
+            primaryStage.setScene(new Scene(root));
+            //primaryStage.setMinWidth(470);
+            //primaryStage.setMinHeight(460);
             primaryStage.show();
             primaryStage.setOnCloseRequest(e -> {
                 try {
